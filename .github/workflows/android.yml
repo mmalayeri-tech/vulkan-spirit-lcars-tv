@@ -41,14 +41,14 @@ jobs:
       - name: Name the APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/VulkanSpiritLCARS-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/AiyaAnusha-debug.apk
           ls -la dist
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VulkanSpiritLCARS-debug-apk
-          path: dist/VulkanSpiritLCARS-debug.apk
+          name: AiyaAnusha-debug-apk
+          path: dist/AiyaAnusha-debug.apk
           retention-days: 30
 
       - name: Upload test and lint reports
@@ -67,4 +67,4 @@ jobs:
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/VulkanSpiritLCARS-debug.apk --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/AiyaAnusha-debug.apk --clobber

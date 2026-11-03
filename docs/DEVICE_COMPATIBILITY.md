@@ -28,7 +28,7 @@
 | USB storage listing | Removable volumes reported by `StorageManager` |
 | HDR / display modes | What the box reports through `Display.getHdrCapabilities()` / `supportedModes` |
 | Some settings shortcuts | Firmware including those settings screens. Falls back to main Settings |
-| Hold-OK (long press) | The remote sending a long press. The Computer Core PIN buttons work without it |
+| Hold-OK (long press) | The remote sending a long press. Without it, apps can still be launched; pinning then needs a remote that sends long presses |
 
 ## Tested so far
 
@@ -36,4 +36,8 @@
 - Run on a **Google TV emulator (API 31, arm64)**, the closest available image; there is no API 30 Google TV
   image for Apple Silicon. Checked there: every deck opened with the D-pad, app launch and return,
   long-press pin, theme switch, red alert on/off, live weather. Screenshots are in `docs/screenshots/`.
+- 1.1.0 on the same emulator: Apple TV-style home and top shelf, folding deck rail, computer search with Star Trek
+  shortcuts and the remote's Search key, options sheet (hold OK) with pinning, and German throughout.
+  Content search inside third-party apps (Netflix, Paramount+ …) depends on which apps on the box accept a
+  search request; the emulator has none, so that part is unverified.
 - Not yet run on the physical MiTV-AKRR0. Sound and voice output were not heard (the emulator ran without audio).

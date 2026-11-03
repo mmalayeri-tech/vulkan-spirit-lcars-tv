@@ -18,6 +18,9 @@ import at.vulkanspirit.lcarstv.R
 import at.vulkanspirit.lcarstv.audio.Sfx
 import at.vulkanspirit.lcarstv.data.LcarsSettings
 import at.vulkanspirit.lcarstv.data.LcarsThemeId
+import at.vulkanspirit.lcarstv.data.WeatherState
+import at.vulkanspirit.lcarstv.i18n.En
+import at.vulkanspirit.lcarstv.i18n.Strings
 
 data class LcarsPalette(
     val primary: Color,
@@ -79,6 +82,9 @@ val LcarsFont = FontFamily(
 val LocalPalette = staticCompositionLocalOf { LcarsPalettes.enterpriseD }
 val LocalLcarsSettings = staticCompositionLocalOf { LcarsSettings() }
 val LocalSfx = staticCompositionLocalOf<(Sfx) -> Unit> { {} }
+val LocalStrings = staticCompositionLocalOf<Strings> { En }
+val LocalWeather = staticCompositionLocalOf<WeatherState> { WeatherState.Disabled }
+val LocalRedAlert = staticCompositionLocalOf { false }
 
 /** LCARS text: condensed Antonio typeface, scaled by the Large Text accessibility option. */
 @Composable

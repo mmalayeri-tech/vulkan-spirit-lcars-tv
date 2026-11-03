@@ -1,6 +1,6 @@
 # Optional: using LCARS as the home screen
 
-**Read this first.** Vulkan Spirit LCARS works as a normal app. This page is optional.
+**Read this first.** Space Station Aiya Anusha works as a normal app. This page is optional.
 Nothing here has been tested on a MiTV-AKRR0 yet.
 The app never disables the Google TV launcher, and nothing here requires root.
 

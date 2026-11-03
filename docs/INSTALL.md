@@ -1,4 +1,4 @@
-# Installing Vulkan Spirit LCARS TV on your Xiaomi TV Box
+# Installing Space Station Aiya Anusha on your Xiaomi TV Box
 
 You don't need Android Studio, a Mac, a USB cable or an Android phone.
 An **iPhone** (or any web browser) plus the TV remote is enough.
@@ -12,10 +12,10 @@ Every push to `main` builds the app automatically in GitHub Actions.
 **Option A: a GitHub Release (recommended, easiest for the TV)**
 
 1. On github.com, open your repository → **Releases** → **Draft a new release**.
-2. Create a tag such as `v1.0.0` and click **Publish release**.
-3. Wait about 5 minutes. The workflow attaches `VulkanSpiritLCARS-debug.apk` to the release.
+2. Create a tag such as `v1.1.0` and click **Publish release**.
+3. Wait about 5 minutes. The workflow attaches `AiyaAnusha-debug.apk` to the release.
 4. Long-press the APK on the release page and copy the link. It looks like:
-   `https://github.com/<you>/<repo>/releases/download/v1.0.0/VulkanSpiritLCARS-debug.apk`
+   `https://github.com/<you>/<repo>/releases/download/v1.1.0/AiyaAnusha-debug.apk`
 
    *The repository must be public for the TV to download this link without signing in.*
    *For a private repository, use option C.*
@@ -23,7 +23,7 @@ Every push to `main` builds the app automatically in GitHub Actions.
 **Option B: the Actions artifact (for checking a build)**
 
 1. Repository → **Actions** → the latest green **Build LCARS APK** run.
-2. Scroll down to **Artifacts** and download `VulkanSpiritLCARS-debug-apk`. GitHub delivers it as a ZIP.
+2. Scroll down to **Artifacts** and download `AiyaAnusha-debug-apk`. GitHub delivers it as a ZIP.
 3. Unzip it to get the `.apk`. Artifacts require a GitHub sign-in, so this route is better on a computer than on the TV.
 
 ---
@@ -60,7 +60,7 @@ Save the APK to the iPhone's Files app, send it to the TV, and open it there.
 
 ## 4. Start it
 
-- **Google TV home:** *Apps* tab → scroll to *Your apps* → **Vulkan Spirit LCARS**.
+- **Google TV home:** *Apps* tab → scroll to *Your apps* → **Space Station Aiya Anusha**.
   You can also pin it to the favourites row: highlight it, hold OK, and choose *Add to favourites*.
 - It shows up there because the app declares a `LEANBACK_LAUNCHER` entry with a TV banner.
 
@@ -85,4 +85,4 @@ because every CI build is signed with the same committed debug key (`app/debug.k
 
 ## 6. Uninstalling
 
-**Settings → Apps → Vulkan Spirit LCARS → Uninstall.** Nothing else on the box is changed by this app.
+**Settings → Apps → Space Station Aiya Anusha → Uninstall.** Nothing else on the box is changed by this app.

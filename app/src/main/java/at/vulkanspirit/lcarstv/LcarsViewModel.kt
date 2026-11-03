@@ -16,11 +16,13 @@ import at.vulkanspirit.lcarstv.data.AppRepository
 import at.vulkanspirit.lcarstv.data.Favorites
 import at.vulkanspirit.lcarstv.data.InstalledApp
 import at.vulkanspirit.lcarstv.data.LcarsSettings
+import at.vulkanspirit.lcarstv.data.Recents
 import at.vulkanspirit.lcarstv.data.SettingsStore
 import at.vulkanspirit.lcarstv.data.SystemInfoProvider
 import at.vulkanspirit.lcarstv.data.SystemSnapshot
 import at.vulkanspirit.lcarstv.data.WeatherRepository
 import at.vulkanspirit.lcarstv.data.WeatherState
+import at.vulkanspirit.lcarstv.i18n.Strings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -61,6 +63,19 @@ class LcarsViewModel(app: Application) : AndroidViewModel(app) {
     private val _homeEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val homeEvents: SharedFlow<Unit> = _homeEvents
 
+    /** The app whose options sheet is open (long-press OK), or null. */
+    private val _options = MutableStateFlow<InstalledApp?>(null)
+    val options: StateFlow<InstalledApp?> = _options.asStateFlow()
+
+    /** Whether the TV offers system-wide search and a Play Store, checked with each app scan. */
+    private val _globalSearch = MutableStateFlow(false)
+    val globalSearch: StateFlow<Boolean> = _globalSearch.asStateFlow()
+    private val _playStore = MutableStateFlow(false)
+    val playStore: StateFlow<Boolean> = _playStore.asStateFlow()
+
+    /** Interface strings for the current language setting. */
+    val strings: Strings get() = Strings.forLanguage(settings.value.language)
+
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
     private var toastJob: Job? = null
@@ -94,6 +109,7 @@ class LcarsViewModel(app: Application) : AndroidViewModel(app) {
                 sounds.navigationSounds = s.navigationSounds
                 sounds.volume = s.volume / 100f
                 voice.enabled = s.voiceEnabled
+                voice.setLocale(Strings.forLanguage(s.language).locale)
             }
         }
         viewModelScope.launch {
@@ -121,10 +137,18 @@ class LcarsViewModel(app: Application) : AndroidViewModel(app) {
             val list = runCatching { appRepository.loadApps() }.getOrDefault(emptyList())
             _apps.value = list
             _appsLoading.value = false
+            withContext(Dispatchers.IO) {
+                _globalSearch.value = appRepository.hasGlobalSearch()
+                _playStore.value = appRepository.hasPlayStore()
+            }
             if (list.isNotEmpty()) {
                 val installed = list.map { it.packageName }.toSet()
-                val pruned = Favorites.prune(settings.value.favorites, installed)
-                if (pruned != settings.value.favorites) settingsStore.update { it.copy(favorites = pruned) }
+                val s = settings.value
+                val favorites = Favorites.prune(s.favorites, installed)
+                val recents = Favorites.prune(s.recents, installed)
+                if (favorites != s.favorites || recents != s.recents) {
+                    settingsStore.update { it.copy(favorites = favorites, recents = recents) }
+                }
             }
         }
     }
@@ -143,7 +167,7 @@ class LcarsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun resetSettings() {
         settingsStore.reset()
-        showToast("SETTINGS RESTORED TO DEFAULTS")
+        showToast(strings.settingsRestored)
     }
 
     fun play(sfx: Sfx) = sounds.play(sfx)
@@ -153,17 +177,60 @@ class LcarsViewModel(app: Application) : AndroidViewModel(app) {
     fun launch(context: Context, app: InstalledApp) {
         if (appRepository.launch(context, app)) {
             sounds.play(Sfx.LAUNCH)
-            voice.say("Launching ${app.label}")
+            voice.say(strings.voiceLaunching(app.label))
+            settingsStore.update { it.copy(recents = Recents.record(it.recents, app.packageName)) }
         } else {
-            sounds.play(Sfx.ERROR)
-            voice.say("Unable to comply")
-            showToast("UNABLE TO LAUNCH ${app.label.uppercase()}")
+            unable(strings.unableToLaunch(app.label.uppercase()))
         }
     }
 
-    fun toggleFavorite(pkg: String) {
+    fun toggleFavorite(app: InstalledApp) {
         sounds.play(Sfx.TOGGLE)
-        settingsStore.update { it.copy(favorites = Favorites.toggle(it.favorites, pkg)) }
+        val pinning = app.packageName !in settings.value.favorites
+        settingsStore.update { it.copy(favorites = Favorites.toggle(it.favorites, app.packageName)) }
+        val name = app.label.uppercase()
+        showToast(if (pinning) strings.pinned(name) else strings.unpinned(name))
+    }
+
+    fun forgetRecent(pkg: String) = settingsStore.update { it.copy(recents = it.recents - pkg) }
+
+    fun showOptions(app: InstalledApp) {
+        sounds.play(Sfx.SELECT)
+        _options.value = app
+    }
+
+    fun dismissOptions() {
+        _options.value = null
+    }
+
+    fun openAppInfo(context: Context, app: InstalledApp) {
+        if (!appRepository.openAppInfo(context, app.packageName)) unable(strings.systemSettingsUnavailable)
+    }
+
+    /** Searches for [query] inside one app (its own search screen). */
+    fun searchIn(context: Context, app: InstalledApp, query: String) {
+        voice.say(strings.voiceWorking)
+        if (appRepository.searchIn(context, app.packageName, query)) {
+            sounds.play(Sfx.LAUNCH)
+            settingsStore.update { it.copy(recents = Recents.record(it.recents, app.packageName)) }
+        } else {
+            unable(strings.unableToLaunch(app.label.uppercase()))
+        }
+    }
+
+    fun searchEverywhere(context: Context, query: String) {
+        voice.say(strings.voiceWorking)
+        if (appRepository.searchEverywhere(context, query)) sounds.play(Sfx.LAUNCH) else unable(strings.unableToLaunch(strings.everywhere))
+    }
+
+    fun searchPlayStore(context: Context, query: String) {
+        if (appRepository.searchPlayStore(context, query)) sounds.play(Sfx.LAUNCH) else unable(strings.unableToLaunch(strings.playStore))
+    }
+
+    private fun unable(message: String) {
+        sounds.play(Sfx.ERROR)
+        voice.say(strings.voiceUnable)
+        showToast(message)
     }
 
     fun moveFavorite(pkg: String, up: Boolean) = settingsStore.update {
@@ -175,11 +242,11 @@ class LcarsViewModel(app: Application) : AndroidViewModel(app) {
         _redAlert.value = on
         if (on) {
             sounds.play(Sfx.ALERT)
-            voice.say("Red alert. All hands to battle stations.")
+            voice.say(strings.voiceRedAlert)
         } else {
             sounds.stopAlert()
             sounds.play(Sfx.BACK)
-            voice.say("Condition green. Standing down.")
+            voice.say(strings.voiceStandDown)
         }
     }
 
@@ -193,7 +260,7 @@ class LcarsViewModel(app: Application) : AndroidViewModel(app) {
     fun setHomeAlias(enabled: Boolean) {
         runCatching { systemInfo.setHomeAliasEnabled(enabled) }
         refreshSystem()
-        showToast(if (enabled) "HOME MODE ENTRY ENABLED" else "HOME MODE ENTRY DISABLED")
+        showToast(if (enabled) strings.homeEntryEnabled else strings.homeEntryDisabled)
     }
 
     /** Tries each settings screen in turn; firmware often omits some of them. */
@@ -205,8 +272,7 @@ class LcarsViewModel(app: Application) : AndroidViewModel(app) {
             }.isSuccess
             if (ok) return
         }
-        sounds.play(Sfx.ERROR)
-        showToast("SYSTEM SETTINGS UNAVAILABLE")
+        unable(strings.systemSettingsUnavailable)
     }
 
     fun showToast(message: String) {

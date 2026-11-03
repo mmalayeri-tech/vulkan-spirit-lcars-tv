@@ -23,6 +23,13 @@ object AppSearch {
     }
 }
 
+object Recents {
+    const val MAX = 12
+
+    /** Moves [pkg] to the front, newest first, capped at [MAX]. */
+    fun record(recents: List<String>, pkg: String): List<String> = (listOf(pkg) + (recents - pkg)).take(MAX)
+}
+
 object Favorites {
     fun toggle(favorites: List<String>, pkg: String): List<String> =
         if (pkg in favorites) favorites - pkg else favorites + pkg

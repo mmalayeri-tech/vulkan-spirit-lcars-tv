@@ -36,6 +36,7 @@ import at.vulkanspirit.lcarstv.ui.components.LcarsButton
 import at.vulkanspirit.lcarstv.ui.theme.LText
 import at.vulkanspirit.lcarstv.ui.theme.LocalLcarsSettings
 import at.vulkanspirit.lcarstv.ui.theme.LocalPalette
+import at.vulkanspirit.lcarstv.ui.theme.LocalStrings
 
 // Pulse period is 1.6 s (well under the 3 flashes/second photosensitivity guideline).
 private const val PULSE_MS = 800
@@ -45,24 +46,24 @@ fun RedAlertScreen(vm: LcarsViewModel) {
     val active by vm.redAlert.collectAsStateWithLifecycle()
     val palette = LocalPalette.current
     val settings = LocalLcarsSettings.current
+    val strings = LocalStrings.current
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            LText("TACTICAL CONDITION", size = 20.sp, color = palette.secondary, bold = true)
+            LText(strings.tacticalCondition, size = 20.sp, color = palette.secondary, bold = true)
             LText(
-                if (active) "RED ALERT" else "CONDITION GREEN",
+                if (active) strings.deckRedAlert else strings.conditionGreen,
                 size = 48.sp,
                 color = if (active) palette.alert else Color(0xFF66CC66),
                 bold = true,
             )
             LText(
-                if (active) "ALL HANDS TO BATTLE STATIONS. PRESS BACK OR STAND DOWN TO CANCEL."
-                else "ENGAGE TO SOUND GENERAL QUARTERS ACROSS EVERY DECK OF THE INTERFACE.",
+                if (active) strings.alertActiveHint else strings.alertIdleHint,
                 size = 16.sp,
                 color = palette.textDim,
                 maxLines = 3,
             )
             LcarsButton(
-                text = if (active) "STAND DOWN" else "ENGAGE RED ALERT",
+                text = if (active) strings.standDown else strings.engageRedAlert,
                 color = if (active) Color(0xFF66AA66) else palette.alert,
                 onClick = { vm.setRedAlert(!active) },
                 modifier = Modifier.width(300.dp),
@@ -73,20 +74,19 @@ fun RedAlertScreen(vm: LcarsViewModel) {
             )
             LText(
                 when {
-                    !settings.soundsEnabled -> "ALERT KLAXON MUTED (SOUND EFFECTS OFF)"
-                    else -> "KLAXON SOUNDS SIX TIMES, THEN THE VISUAL ALERT CONTINUES SILENTLY"
+                    !settings.soundsEnabled -> strings.klaxonMuted
+                    else -> strings.klaxonInfo
                 },
                 size = 13.sp,
                 color = palette.textDim,
             )
             LText(
-                if (settings.motion) "PHOTOSENSITIVE? ENABLE REDUCED MOTION IN SETTINGS FOR A STEADY, NON-PULSING ALERT."
-                else "REDUCED MOTION ACTIVE: ALERT IS SHOWN WITHOUT PULSING.",
+                if (settings.motion) strings.photosensitiveHint else strings.reducedMotionActive,
                 size = 13.sp,
                 color = palette.textDim,
                 maxLines = 2,
             )
-            LcarsButton("TEST ALERT TONE", palette.secondary, { vm.play(Sfx.ERROR) }, Modifier.width(200.dp), height = 34.dp, textSize = 14, sound = null)
+            LcarsButton(strings.testAlertTone, palette.secondary, { vm.play(Sfx.ERROR) }, Modifier.width(200.dp), height = 34.dp, textSize = 14, sound = null)
         }
         AlertBars(active, Modifier.weight(1f).fillMaxSize())
     }
@@ -127,6 +127,7 @@ private fun AlertBars(active: Boolean, modifier: Modifier) {
 @Composable
 fun RedAlertOverlay() {
     val motion = LocalLcarsSettings.current.motion
+    val strings = LocalStrings.current
     val pulse by rememberInfiniteTransition(label = "alert").animateFloat(
         0.25f, 1f, infiniteRepeatable(tween(PULSE_MS, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse",
     )
@@ -140,7 +141,7 @@ fun RedAlertOverlay() {
                 .border(3.dp, red.copy(alpha = a))
                 .padding(horizontal = 26.dp, vertical = 2.dp),
         ) {
-            LText("RED ALERT", size = 26.sp, color = red.copy(alpha = a), bold = true, letterSpacing = 6.sp)
+            LText(strings.deckRedAlert, size = 26.sp, color = red.copy(alpha = a), bold = true, letterSpacing = 6.sp)
         }
         Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(4.dp).border(2.dp, red.copy(alpha = a)))
     }

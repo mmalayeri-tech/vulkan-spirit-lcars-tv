@@ -80,14 +80,23 @@ class VoiceEngine(context: Context) {
     @Volatile var enabled = false
     @Volatile private var ready = false
 
+    @Volatile private var locale: Locale = Locale.US
+
     private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
         ready = status == TextToSpeech.SUCCESS
         if (ready) configure()
     }
 
+    /** Switches the spoken language (English or German) to match the interface. */
+    fun setLocale(newLocale: Locale) {
+        if (newLocale == locale) return
+        locale = newLocale
+        if (ready) configure()
+    }
+
     private fun configure() {
         runCatching {
-            if (tts.isLanguageAvailable(Locale.US) >= TextToSpeech.LANG_AVAILABLE) tts.language = Locale.US
+            if (tts.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) tts.language = locale
             tts.setPitch(0.92f)
             tts.setSpeechRate(0.95f)
         }

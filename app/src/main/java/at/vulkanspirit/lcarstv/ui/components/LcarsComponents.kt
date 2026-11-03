@@ -1,7 +1,11 @@
 package at.vulkanspirit.lcarstv.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -11,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,9 +35,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
@@ -45,9 +53,11 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Glow
 import androidx.tv.material3.Surface
 import at.vulkanspirit.lcarstv.audio.Sfx
 import at.vulkanspirit.lcarstv.data.InstalledApp
@@ -55,6 +65,7 @@ import at.vulkanspirit.lcarstv.ui.theme.LText
 import at.vulkanspirit.lcarstv.ui.theme.LocalLcarsSettings
 import at.vulkanspirit.lcarstv.ui.theme.LocalPalette
 import at.vulkanspirit.lcarstv.ui.theme.LocalSfx
+import at.vulkanspirit.lcarstv.ui.theme.LocalStrings
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
@@ -298,7 +309,7 @@ fun SegmentGauge(
                 i.toFloat() / segments >= warnAbove -> palette.alert
                 else -> color
             }
-            drawRect(c, topLeft = androidx.compose.ui.geometry.Offset(i * (segW + gap), 0f), size = Size(segW, size.height))
+            drawRect(c, topLeft = Offset(i * (segW + gap), 0f), size = Size(segW, size.height))
         }
     }
 }
@@ -339,75 +350,130 @@ private fun randomCode(): String = when (Random.nextInt(4)) {
     else -> "${Random.nextInt(10, 99)}-${Random.nextInt(100, 999)}"
 }
 
-/** A 16:9 app card: the app's own TV banner when it has one, else icon + name on an LCARS block. */
+/**
+ * An Apple TV-style app card inside the LCARS look: a rounded 16:9 tile that lifts, glows in the
+ * app's own colour and catches a light sweep when focused; the name appears underneath only while
+ * focused. Uses the app's TV banner when it has one, else its icon on a gradient of its colour.
+ * OK launches, holding OK opens the options sheet.
+ */
 @Composable
-fun AppTile(
+fun AppCard(
     app: InstalledApp,
     isFavorite: Boolean,
-    colorIndex: Int,
-    onLaunch: () -> Unit,
-    onToggleFavorite: () -> Unit,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
+    width: Dp = 168.dp,
+    onFocused: (InstalledApp) -> Unit = {},
 ) {
     val palette = LocalPalette.current
     val settings = LocalLcarsSettings.current
+    val strings = LocalStrings.current
     val sfx = LocalSfx.current
     var focused by remember { mutableStateOf(false) }
-    val color = palette.pick(colorIndex)
-    Column(modifier) {
+    val accent = app.accent?.let { Color(it) } ?: palette.pick(app.packageName.hashCode())
+    val sweep = remember { Animatable(1f) }
+    LaunchedEffect(focused) {
+        if (focused && settings.motion) {
+            sweep.snapTo(0f)
+            sweep.animateTo(1f, tween(750, easing = FastOutSlowInEasing))
+        }
+    }
+    Column(if (width.isSpecified) modifier.width(width) else modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
-            onClick = onLaunch,
-            onLongClick = onToggleFavorite,
+            onClick = onClick,
+            onLongClick = onLongClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(96.dp)
+                .aspectRatio(16f / 9f)
                 .onFocusChanged {
-                    if (it.isFocused && !focused) sfx(Sfx.FOCUS)
+                    if (it.isFocused && !focused) {
+                        sfx(Sfx.FOCUS)
+                        onFocused(app)
+                    }
                     focused = it.isFocused
                 },
-            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
             colors = ClickableSurfaceDefaults.colors(
                 containerColor = palette.panel,
                 focusedContainerColor = palette.panel,
+                pressedContainerColor = palette.panel,
             ),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = if (settings.motion) 1.08f else 1f),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = if (settings.motion) 1.12f else 1.04f),
+            glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(accent.copy(alpha = 0.75f), 16.dp)),
             border = ClickableSurfaceDefaults.border(
-                border = Border(BorderStroke(2.dp, color.copy(alpha = 0.5f))),
-                focusedBorder = Border(BorderStroke(4.dp, palette.focus)),
+                border = Border(BorderStroke(1.dp, accent.copy(alpha = 0.35f)), shape = RoundedCornerShape(12.dp)),
+                focusedBorder = Border(BorderStroke(2.dp, palette.focus.copy(alpha = 0.9f)), shape = RoundedCornerShape(12.dp)),
             ),
         ) {
-            if (app.banner != null) {
-                Image(app.banner, contentDescription = app.label, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            } else {
-                Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.width(14.dp).fillMaxHeight().background(color))
-                    Spacer(Modifier.width(10.dp))
-                    if (app.icon != null) {
-                        Image(app.icon, contentDescription = null, Modifier.size(52.dp))
-                        Spacer(Modifier.width(10.dp))
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .drawWithContent {
+                        drawContent()
+                        if (focused) {
+                            // Static top sheen plus a one-off diagonal light sweep, like tvOS.
+                            drawRect(Brush.verticalGradient(0f to Color.White.copy(alpha = 0.16f), 0.5f to Color.Transparent))
+                            val x = -size.width + sweep.value * size.width * 2.5f
+                            drawRect(
+                                Brush.linearGradient(
+                                    0f to Color.Transparent,
+                                    0.5f to Color.White.copy(alpha = if (sweep.value < 1f) 0.22f else 0f),
+                                    1f to Color.Transparent,
+                                    start = Offset(x, 0f),
+                                    end = Offset(x + size.width * 0.6f, size.height),
+                                ),
+                            )
+                        }
+                    },
+            ) {
+                if (app.banner != null) {
+                    Image(app.banner, contentDescription = app.label, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                } else {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(Brush.linearGradient(listOf(lerp(accent, Color.Black, 0.25f), lerp(accent, Color.Black, 0.75f)))),
+                    )
+                    Column(
+                        Modifier.fillMaxSize().padding(6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        app.icon?.let { Image(it, contentDescription = null, Modifier.fillMaxHeight(0.58f).aspectRatio(1f)) }
+                        LText(app.label.uppercase(), size = 13.sp, color = Color.White, bold = true, align = TextAlign.Center)
                     }
-                    LText(app.label.uppercase(), Modifier.weight(1f).padding(end = 8.dp), size = 16.sp, color = palette.text, maxLines = 2)
+                }
+                if (isFavorite) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(width = 22.dp, height = 8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(palette.highlight),
+                    )
+                }
+                if (!app.isTvApp) {
+                    LText(
+                        strings.phoneTag,
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .padding(5.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.Black.copy(alpha = 0.7f))
+                            .padding(horizontal = 4.dp),
+                        size = 10.sp,
+                        color = palette.alert,
+                        bold = true,
+                    )
                 }
             }
-            if (isFavorite) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .size(width = 26.dp, height = 12.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(palette.highlight),
-                )
-            }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            LText(
-                app.label.uppercase(),
-                Modifier.weight(1f),
-                size = 14.sp,
-                color = if (focused) palette.focus else palette.textDim,
-            )
-            if (!app.isTvApp) LText("MOBILE", size = 11.sp, color = palette.alert)
+        Box(Modifier.fillMaxWidth().height(22.dp).padding(top = 6.dp), contentAlignment = Alignment.Center) {
+            androidx.compose.animation.AnimatedVisibility(focused, enter = fadeIn(tween(160)), exit = fadeOut(tween(120))) {
+                LText(app.label.uppercase(), size = 13.sp, color = palette.focus, align = TextAlign.Center)
+            }
         }
     }
 }
@@ -420,9 +486,12 @@ fun LcarsKeypad(
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
     extraKey: Pair<String, () -> Unit>? = null,
+    trailing: @Composable () -> Unit = {},
 ) {
     val palette = LocalPalette.current
-    val rows = listOf("ABCDEFG", "HIJKLMN", "OPQRSTU", "VWXYZ-.", "1234567", "890")
+    val strings = LocalStrings.current
+    val umlauts = strings.locale.language == "de"
+    val rows = listOf("ABCDEFG", "HIJKLMN", "OPQRSTU", "VWXYZ-.", "1234567", if (umlauts) "890ÄÖÜ" else "890:")
     Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         rows.forEachIndexed { r, keys ->
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -438,14 +507,15 @@ fun LcarsKeypad(
                         sound = Sfx.FOCUS,
                     )
                 }
-                if (r == rows.lastIndex) {
-                    LcarsButton("SPACE", palette.accent, { onKey(" ") }, Modifier.width(80.dp), height = 34.dp, shape = RoundedCornerShape(8.dp), textAlign = TextAlign.Center, textSize = 14)
-                    LcarsButton("DEL", palette.secondary, onDelete, Modifier.width(54.dp), height = 34.dp, shape = RoundedCornerShape(8.dp), textAlign = TextAlign.Center, textSize = 14, sound = Sfx.BACK)
-                }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            LcarsButton("CLEAR", palette.alert, onClear, Modifier.width(120.dp), height = 34.dp, textAlign = TextAlign.Center, textSize = 14, sound = Sfx.BACK)
+            LcarsButton(strings.keySpace, palette.accent, { onKey(" ") }, Modifier.width(124.dp), height = 34.dp, shape = RoundedCornerShape(8.dp), textAlign = TextAlign.Center, textSize = 14)
+            LcarsButton(strings.keyDelete, palette.secondary, onDelete, Modifier.width(80.dp), height = 34.dp, shape = RoundedCornerShape(8.dp), textAlign = TextAlign.Center, textSize = 14, sound = Sfx.BACK)
+            LcarsButton(strings.keyClear, palette.alert, onClear, Modifier.width(78.dp), height = 34.dp, shape = RoundedCornerShape(8.dp), textAlign = TextAlign.Center, textSize = 14, sound = Sfx.BACK)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            trailing()
             extraKey?.let { (label, action) ->
                 LcarsButton(label, palette.primary, action, Modifier.width(166.dp), height = 34.dp, textAlign = TextAlign.Center, textSize = 14)
             }

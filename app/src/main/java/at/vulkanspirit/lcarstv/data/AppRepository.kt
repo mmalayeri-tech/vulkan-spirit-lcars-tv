@@ -1,10 +1,15 @@
 package at.vulkanspirit.lcarstv.data
 
+import android.app.SearchManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
+import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
@@ -20,6 +25,10 @@ data class InstalledApp(
     val isTvApp: Boolean,
     val banner: ImageBitmap?,
     val icon: ImageBitmap?,
+    /** The artwork's dominant colour (ARGB), used for the top-shelf glow. */
+    val accent: Int?,
+    /** True when the app accepts ACTION_SEARCH, so content can be searched inside it. */
+    val searchable: Boolean,
 )
 
 /** Discovers launchable apps through PackageManager; nothing is hard-coded. */
@@ -31,21 +40,28 @@ class AppRepository(private val context: Context) {
             runCatching { pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(category), 0) }
                 .getOrDefault(emptyList())
 
+        val searchable = runCatching { pm.queryIntentActivities(Intent(Intent.ACTION_SEARCH), 0) }
+            .getOrDefault(emptyList())
+            .mapNotNull { it.activityInfo?.takeIf { a -> a.exported }?.packageName }
+            .toSet()
+
         val result = LinkedHashMap<String, InstalledApp>()
         fun add(ri: ResolveInfo, tv: Boolean) {
             val ai = ri.activityInfo ?: return
             if (ai.packageName == context.packageName || ai.packageName in result) return
             val label = ri.loadLabel(pm)?.toString()?.trim().orEmpty().ifEmpty { ai.packageName }
-            val banner = runCatching { ai.loadBanner(pm) }.getOrNull()?.toImage(320, 180)
-            val icon = runCatching { ri.loadIcon(pm) }.getOrNull()?.toImage(128, 128)
+            val bannerBmp = runCatching { ai.loadBanner(pm) }.getOrNull()?.toBitmapOrNull(480, 270)
+            val iconBmp = runCatching { ri.loadIcon(pm) }.getOrNull()?.toBitmapOrNull(160, 160)
             result[ai.packageName] = InstalledApp(
                 packageName = ai.packageName,
                 activityName = ai.name,
                 label = label,
                 group = AppCategorizer.classify(ai.packageName, label, ai.applicationInfo.category),
                 isTvApp = tv,
-                banner = banner,
-                icon = icon,
+                banner = bannerBmp?.asImageBitmap(),
+                icon = iconBmp?.asImageBitmap(),
+                accent = (bannerBmp ?: iconBmp)?.let(::accentOf),
+                searchable = ai.packageName in searchable,
             )
         }
 
@@ -72,6 +88,55 @@ class AppRepository(private val context: Context) {
         }
     }
 
-    private fun Drawable.toImage(w: Int, h: Int): ImageBitmap? =
-        runCatching { toBitmap(w, h).asImageBitmap() }.getOrNull()
+    /** Opens the app's own search with [query] (e.g. "Star Trek" inside a streaming app). */
+    fun searchIn(launcher: Context, pkg: String, query: String): Boolean = start(
+        launcher,
+        Intent(Intent.ACTION_SEARCH).setPackage(pkg).putExtra(SearchManager.QUERY, query),
+    )
+
+    /** True when the TV offers a system-wide search (Google TV / Assistant). */
+    fun hasGlobalSearch(): Boolean = globalSearchIntents("").any { canResolve(it) }
+
+    /** System-wide search across every app that feeds Google TV. */
+    fun searchEverywhere(launcher: Context, query: String): Boolean =
+        globalSearchIntents(query).any { canResolve(it) && start(launcher, it) }
+
+    fun hasPlayStore(): Boolean = canResolve(playStoreIntent("x"))
+
+    fun searchPlayStore(launcher: Context, query: String): Boolean = start(launcher, playStoreIntent(query))
+
+    fun openAppInfo(launcher: Context, pkg: String): Boolean = start(
+        launcher,
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", pkg, null)),
+    )
+
+    private fun globalSearchIntents(query: String) = listOf(
+        Intent(SearchManager.INTENT_ACTION_GLOBAL_SEARCH).putExtra(SearchManager.QUERY, query),
+        Intent(Intent.ACTION_WEB_SEARCH).putExtra(SearchManager.QUERY, query),
+    )
+
+    private fun playStoreIntent(query: String) =
+        Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=${Uri.encode(query)}&c=apps"))
+
+    private fun canResolve(intent: Intent): Boolean =
+        runCatching { context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY) != null }
+            .getOrDefault(false)
+
+    private fun start(launcher: Context, intent: Intent): Boolean = try {
+        launcher.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+    } catch (e: ActivityNotFoundException) {
+        false
+    } catch (e: SecurityException) {
+        false
+    }
+
+    private fun Drawable.toBitmapOrNull(w: Int, h: Int): Bitmap? = runCatching { toBitmap(w, h) }.getOrNull()
+
+    private fun accentOf(bitmap: Bitmap): Int? = runCatching {
+        val small = Bitmap.createScaledBitmap(bitmap, 16, 9, true)
+        val px = IntArray(small.width * small.height)
+        small.getPixels(px, 0, small.width, 0, 0, small.width, small.height)
+        ColorMath.dominant(px)
+    }.getOrNull()
 }

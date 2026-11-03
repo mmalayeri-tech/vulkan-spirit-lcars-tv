@@ -16,12 +16,16 @@ data class GeoPreset(val name: String, val latitude: Double, val longitude: Doub
 
 data class ZonePreset(val label: String, val zoneId: String)
 
+/** Interface language. SYSTEM follows the TV's language (German if it is German, else English). */
+enum class AppLanguage { SYSTEM, ENGLISH, GERMAN }
+
 object Presets {
-    val shipNames = listOf(
-        "VULKAN SPIRIT", "ENTERPRISE", "VOYAGER", "DEFIANT", "DISCOVERY",
-        "CERRITOS", "PROTOSTAR", "TITAN", "EXCELSIOR", "SARATOGA",
+    const val DEFAULT_STATION = "SPACE STATION AIYA ANUSHA"
+    val stationNames = listOf(
+        DEFAULT_STATION, "STARBASE AIYA ANUSHA", "U.S.S. AIYA ANUSHA", "DEEP SPACE NINE",
+        "STARBASE ONE", "U.S.S. ENTERPRISE", "U.S.S. VOYAGER", "U.S.S. DEFIANT", "U.S.S. DISCOVERY", "U.S.S. CERRITOS",
     )
-    val registries = listOf("NCC-2026-V", "NCC-1701-D", "NCC-74656", "NX-74205", "NCC-1031", "NCC-75567", "NCC-80102")
+    val registries = listOf("SSA-2026", "NCC-1701-D", "NCC-74656", "DS9", "NX-74205", "NCC-1031", "NCC-75567")
     val volumes = listOf(30, 50, 70, 100)
 
     val locations = listOf(
@@ -63,8 +67,9 @@ object Presets {
 }
 
 data class LcarsSettings(
-    val shipName: String = "VULKAN SPIRIT",
-    val registry: String = "NCC-2026-V",
+    val shipName: String = Presets.DEFAULT_STATION,
+    val registry: String = "SSA-2026",
+    val language: AppLanguage = AppLanguage.SYSTEM,
     val theme: LcarsThemeId = LcarsThemeId.ENTERPRISE_D,
     val soundsEnabled: Boolean = true,
     val navigationSounds: Boolean = false,
@@ -78,6 +83,8 @@ data class LcarsSettings(
     val weatherLocation: Int = 0,
     val worldClocks: List<String> = Presets.defaultZones,
     val favorites: List<String> = emptyList(),
+    /** Most recently launched packages, newest first. */
+    val recents: List<String> = emptyList(),
 ) {
     /** Motion is shown only when animations are on and reduced motion is off. */
     val motion: Boolean get() = animationsEnabled && !reducedMotion
@@ -96,13 +103,15 @@ class SettingsStore(context: Context) {
         save(next)
     }
 
-    fun reset() = update { LcarsSettings() }
+    /** Restores defaults but keeps the user's pinned and recent apps. */
+    fun reset() = update { LcarsSettings(favorites = it.favorites, recents = it.recents) }
 
     private fun load(): LcarsSettings {
         val d = LcarsSettings()
         return LcarsSettings(
-            shipName = prefs.getString("shipName", d.shipName) ?: d.shipName,
-            registry = prefs.getString("registry", d.registry) ?: d.registry,
+            shipName = prefs.getString("stationName", d.shipName) ?: d.shipName,
+            registry = prefs.getString("designation", d.registry) ?: d.registry,
+            language = runCatching { AppLanguage.valueOf(prefs.getString("language", d.language.name)!!) }.getOrDefault(d.language),
             theme = runCatching { LcarsThemeId.valueOf(prefs.getString("theme", d.theme.name)!!) }.getOrDefault(d.theme),
             soundsEnabled = prefs.getBoolean("sounds", d.soundsEnabled),
             navigationSounds = prefs.getBoolean("navSounds", d.navigationSounds),
@@ -116,13 +125,15 @@ class SettingsStore(context: Context) {
             weatherLocation = prefs.getInt("weatherLocation", d.weatherLocation),
             worldClocks = prefs.getString("worldClocks", null)?.split('|')?.filter { it.isNotBlank() } ?: d.worldClocks,
             favorites = prefs.getString("favorites", null)?.split('|')?.filter { it.isNotBlank() } ?: d.favorites,
+            recents = prefs.getString("recents", null)?.split('|')?.filter { it.isNotBlank() } ?: d.recents,
         )
     }
 
     private fun save(s: LcarsSettings) {
         prefs.edit()
-            .putString("shipName", s.shipName)
-            .putString("registry", s.registry)
+            .putString("stationName", s.shipName)
+            .putString("designation", s.registry)
+            .putString("language", s.language.name)
             .putString("theme", s.theme.name)
             .putBoolean("sounds", s.soundsEnabled)
             .putBoolean("navSounds", s.navigationSounds)
@@ -136,6 +147,7 @@ class SettingsStore(context: Context) {
             .putInt("weatherLocation", s.weatherLocation)
             .putString("worldClocks", s.worldClocks.joinToString("|"))
             .putString("favorites", s.favorites.joinToString("|"))
+            .putString("recents", s.recents.joinToString("|"))
             .apply()
     }
 }

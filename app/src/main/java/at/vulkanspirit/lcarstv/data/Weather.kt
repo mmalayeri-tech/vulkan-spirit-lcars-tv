@@ -17,37 +17,14 @@ data class WeatherReport(
     val minC: Double,
     val sunrise: String,
     val sunset: String,
-) {
-    val description: String get() = WeatherCodes.describe(code)
-}
+)
 
 sealed interface WeatherState {
     data object Disabled : WeatherState
     data object Loading : WeatherState
     data class Ready(val report: WeatherReport) : WeatherState
-    data class Failed(val reason: String) : WeatherState
-}
-
-/** WMO weather interpretation codes as used by Open-Meteo. */
-object WeatherCodes {
-    fun describe(code: Int): String = when (code) {
-        0 -> "CLEAR SKY"
-        1 -> "MAINLY CLEAR"
-        2 -> "PARTLY CLOUDY"
-        3 -> "OVERCAST"
-        45, 48 -> "FOG"
-        51, 53, 55 -> "DRIZZLE"
-        56, 57 -> "FREEZING DRIZZLE"
-        61, 63, 65 -> "RAIN"
-        66, 67 -> "FREEZING RAIN"
-        71, 73, 75 -> "SNOWFALL"
-        77 -> "SNOW GRAINS"
-        80, 81, 82 -> "RAIN SHOWERS"
-        85, 86 -> "SNOW SHOWERS"
-        95 -> "THUNDERSTORM"
-        96, 99 -> "THUNDERSTORM WITH HAIL"
-        else -> "UNKNOWN CONDITIONS"
-    }
+    /** [httpCode] is set when the server answered with an error, null when it was unreachable. */
+    data class Failed(val httpCode: Int?) : WeatherState
 }
 
 /** Open-Meteo: free, no API key. Only the chosen preset's coordinates are sent. */
@@ -66,7 +43,7 @@ class WeatherRepository {
                 readTimeout = 8000
             }
             val body = try {
-                if (conn.responseCode != 200) return@withContext WeatherState.Failed("SENSOR ERROR ${conn.responseCode}")
+                if (conn.responseCode != 200) return@withContext WeatherState.Failed(conn.responseCode)
                 conn.inputStream.bufferedReader().use { it.readText() }
             } finally {
                 conn.disconnect()
@@ -88,7 +65,7 @@ class WeatherRepository {
                 ),
             )
         } catch (e: Exception) {
-            WeatherState.Failed("LONG-RANGE SENSORS OFFLINE")
+            WeatherState.Failed(null)
         }
     }
 }

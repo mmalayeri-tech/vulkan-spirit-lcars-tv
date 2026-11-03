@@ -2,7 +2,8 @@ package at.vulkanspirit.lcarstv
 
 import at.vulkanspirit.lcarstv.data.Astro
 import at.vulkanspirit.lcarstv.data.Format
-import at.vulkanspirit.lcarstv.data.WeatherCodes
+import at.vulkanspirit.lcarstv.i18n.De
+import at.vulkanspirit.lcarstv.i18n.En
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -11,11 +12,11 @@ import java.time.ZonedDateTime
 
 class AstroFormatTest {
     @Test fun stardateFollowsConvention() {
-        val start = ZonedDateTime.of(2323, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
-        assertEquals(0.0, Astro.stardate(start), 0.001)
+        val tngPremiereYear = ZonedDateTime.of(1987, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
+        assertEquals(41000.0, Astro.stardate(tngPremiereYear), 0.001)
         val mid2026 = ZonedDateTime.of(2026, 7, 2, 12, 0, 0, 0, ZoneOffset.UTC)
-        assertEquals(-296500.0, Astro.stardate(mid2026), 2.0)
-        assertEquals("-296500.0", Astro.formatStardate(-296500.0))
+        assertEquals(80500.0, Astro.stardate(mid2026), 2.0)
+        assertEquals("80500.0", Astro.formatStardate(80500.0))
     }
 
     @Test fun moonPhaseNearKnownNewAndFullMoons() {
@@ -26,7 +27,9 @@ class AstroFormatTest {
         assertTrue(Astro.moonIllumination(newMoon) < 0.05)
         val fullMoon = ZonedDateTime.of(2024, 4, 23, 23, 49, 0, 0, ZoneOffset.UTC).toInstant()
         assertTrue(Astro.moonIllumination(fullMoon) > 0.95)
-        assertEquals("FULL MOON", Astro.moonPhaseName(fullMoon))
+        assertEquals(4, Astro.moonPhaseIndex(fullMoon))
+        assertEquals("FULL MOON", En.moonPhase(4))
+        assertEquals("VOLLMOND", De.moonPhase(4))
     }
 
     @Test fun yearProgress() {
@@ -45,8 +48,9 @@ class AstroFormatTest {
     }
 
     @Test fun weatherCodes() {
-        assertEquals("CLEAR SKY", WeatherCodes.describe(0))
-        assertEquals("THUNDERSTORM", WeatherCodes.describe(95))
-        assertEquals("UNKNOWN CONDITIONS", WeatherCodes.describe(1234))
+        assertEquals("CLEAR SKY", En.weather(0))
+        assertEquals("THUNDERSTORM", En.weather(95))
+        assertEquals("UNKNOWN CONDITIONS", En.weather(1234))
+        assertEquals("GEWITTER", De.weather(95))
     }
 }

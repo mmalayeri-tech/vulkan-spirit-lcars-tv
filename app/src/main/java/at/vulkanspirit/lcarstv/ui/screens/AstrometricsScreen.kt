@@ -35,7 +35,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import at.vulkanspirit.lcarstv.LcarsViewModel
 import at.vulkanspirit.lcarstv.data.Astro
 import at.vulkanspirit.lcarstv.data.Presets
-import at.vulkanspirit.lcarstv.data.SPACE_FACTS
 import at.vulkanspirit.lcarstv.data.WeatherState
 import at.vulkanspirit.lcarstv.ui.components.InfoLine
 import at.vulkanspirit.lcarstv.ui.components.LcarsButton
@@ -44,6 +43,7 @@ import at.vulkanspirit.lcarstv.ui.components.SegmentGauge
 import at.vulkanspirit.lcarstv.ui.theme.LText
 import at.vulkanspirit.lcarstv.ui.theme.LocalLcarsSettings
 import at.vulkanspirit.lcarstv.ui.theme.LocalPalette
+import at.vulkanspirit.lcarstv.ui.theme.LocalStrings
 import kotlinx.coroutines.delay
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -57,13 +57,14 @@ import kotlin.math.sin
 fun AstrometricsScreen(vm: LcarsViewModel) {
     val palette = LocalPalette.current
     val settings = LocalLcarsSettings.current
+    val strings = LocalStrings.current
     val weather by vm.weather.collectAsStateWithLifecycle()
     val now = rememberNow(1000)
     var factIndex by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         while (true) {
             delay(12_000)
-            factIndex = (factIndex + 1) % SPACE_FACTS.size
+            factIndex = (factIndex + 1) % strings.spaceFacts.size
         }
     }
     val clockFmt = remember(settings.use24h) {
@@ -72,39 +73,39 @@ fun AstrometricsScreen(vm: LcarsViewModel) {
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            LcarsPanel("EXTERIOR SENSORS", palette.primary, Modifier.weight(1f)) {
+            LcarsPanel(strings.exteriorSensors, palette.primary, Modifier.weight(1f)) {
                 when (val w = weather) {
-                    WeatherState.Disabled -> LText("WEATHER SENSORS DISABLED IN SETTINGS", size = 15.sp, color = palette.textDim, maxLines = 2)
-                    WeatherState.Loading -> LText("SCANNING ${settings.location.name}…", size = 15.sp, color = palette.textDim)
+                    WeatherState.Disabled -> LText(strings.weatherDisabled, size = 15.sp, color = palette.textDim, maxLines = 2)
+                    WeatherState.Loading -> LText(strings.scanningLocation(strings.city(settings.location.name)), size = 15.sp, color = palette.textDim)
                     is WeatherState.Failed -> {
-                        LText(w.reason, size = 15.sp, color = palette.alert)
-                        LText("CHECK NETWORK CONNECTION", size = 13.sp, color = palette.textDim)
+                        LText(strings.weatherFailed(w.httpCode), size = 15.sp, color = palette.alert)
+                        LText(strings.checkNetwork, size = 13.sp, color = palette.textDim)
                     }
                     is WeatherState.Ready -> {
                         val r = w.report
-                        LText(r.location, size = 18.sp, color = palette.secondary, bold = true)
+                        LText(strings.city(r.location), size = 18.sp, color = palette.secondary, bold = true)
                         LText(String.format(Locale.US, "%.1f°C", r.temperatureC), size = 44.sp, color = palette.text, bold = true)
-                        LText(r.description, size = 16.sp, color = palette.accent)
-                        InfoLine("HIGH / LOW", String.format(Locale.US, "%.0f° / %.0f°", r.maxC, r.minC))
-                        InfoLine("HUMIDITY", "${r.humidity}%")
-                        InfoLine("WIND", String.format(Locale.US, "%.0f KM/H", r.windKmh))
-                        InfoLine("SUNRISE / SUNSET", "${r.sunrise} / ${r.sunset}")
+                        LText(strings.weather(r.code), size = 16.sp, color = palette.accent)
+                        InfoLine(strings.highLow, String.format(Locale.US, "%.0f° / %.0f°", r.maxC, r.minC))
+                        InfoLine(strings.humidity, "${r.humidity}%")
+                        InfoLine(strings.wind, String.format(Locale.US, "%.0f KM/H", r.windKmh))
+                        InfoLine(strings.sunriseSunset, "${r.sunrise} / ${r.sunset}")
                     }
                 }
             }
-            LcarsPanel("TEMPORAL REFERENCE", palette.tertiary, Modifier.weight(1f)) {
+            LcarsPanel(strings.temporalReference, palette.tertiary, Modifier.weight(1f)) {
                 val zones = Presets.zones.filter { it.zoneId in settings.worldClocks }
                 zones.forEach { z ->
                     val t = runCatching { now.withZoneSameInstant(ZoneId.of(z.zoneId)) }.getOrNull() ?: return@forEach
                     val dayDiff = ChronoUnit.DAYS.between(now.toLocalDate(), t.toLocalDate())
                     val suffix = when {
-                        dayDiff > 0 -> "  +1D"
-                        dayDiff < 0 -> "  -1D"
+                        dayDiff > 0 -> "  ${strings.nextDay}"
+                        dayDiff < 0 -> "  ${strings.previousDay}"
                         else -> ""
                     }
-                    InfoLine(z.label, t.format(clockFmt) + suffix)
+                    InfoLine(strings.city(z.label), t.format(clockFmt) + suffix)
                 }
-                if (zones.isEmpty()) LText("NO WORLD CLOCKS SELECTED", size = 15.sp, color = palette.textDim)
+                if (zones.isEmpty()) LText(strings.noWorldClocks, size = 15.sp, color = palette.textDim)
             }
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 OrbitDisplay(Modifier.fillMaxWidth().height(120.dp))
@@ -112,27 +113,27 @@ fun AstrometricsScreen(vm: LcarsViewModel) {
                     MoonGlyph(Astro.moonIllumination(now.toInstant()).toFloat(), Astro.moonAgeDays(now.toInstant()) < Astro.SYNODIC_MONTH / 2, Modifier.size(40.dp))
                     Spacer(Modifier.width(10.dp))
                     Column {
-                        LText(Astro.moonPhaseName(now.toInstant()), size = 15.sp, color = palette.text)
-                        LText("ILLUMINATION ${(Astro.moonIllumination(now.toInstant()) * 100).toInt()}%", size = 13.sp, color = palette.textDim)
+                        LText(strings.moonPhase(Astro.moonPhaseIndex(now.toInstant())), size = 15.sp, color = palette.text)
+                        LText("${strings.illumination} ${(Astro.moonIllumination(now.toInstant()) * 100).toInt()}%", size = 13.sp, color = palette.textDim)
                     }
                 }
-                InfoLine("STARDATE", Astro.formatStardate(Astro.stardate(now)))
-                InfoLine("SOLAR ORBIT PROGRESS", "${(Astro.yearProgress(now) * 100).toInt()}%")
+                InfoLine(strings.stardate, Astro.formatStardate(Astro.stardate(now)))
+                InfoLine(strings.solarOrbit, "${(Astro.yearProgress(now) * 100).toInt()}%")
                 SegmentGauge(Astro.yearProgress(now).toFloat(), palette.secondary, warnAbove = 2f)
             }
         }
-        LText(SPACE_FACTS[factIndex], size = 15.sp, color = palette.accent, maxLines = 2)
+        LText(strings.spaceFacts[factIndex % strings.spaceFacts.size], size = 15.sp, color = palette.accent, maxLines = 2)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LcarsButton(
-                "LOCATION: ${settings.location.name}", palette.primary,
+                strings.location(strings.city(settings.location.name)), palette.primary,
                 {
                     vm.updateSettings { it.copy(weatherLocation = (it.weatherLocation + 1) % Presets.locations.size) }
                 },
                 Modifier.width(240.dp), height = 36.dp, textSize = 15,
             )
-            LcarsButton("REFRESH SCAN", palette.tertiary, { vm.refreshWeather() }, Modifier.width(150.dp), height = 36.dp, textSize = 15)
+            LcarsButton(strings.refreshScan, palette.tertiary, { vm.refreshWeather() }, Modifier.width(150.dp), height = 36.dp, textSize = 15)
             LcarsButton(
-                if (settings.weatherEnabled) "SENSORS: ON" else "SENSORS: OFF", palette.secondary,
+                strings.sensors(settings.weatherEnabled), palette.secondary,
                 { vm.updateSettings { it.copy(weatherEnabled = !it.weatherEnabled) } },
                 Modifier.width(150.dp), height = 36.dp, textSize = 15,
             )

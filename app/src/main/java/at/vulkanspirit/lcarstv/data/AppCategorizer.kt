@@ -1,14 +1,7 @@
 package at.vulkanspirit.lcarstv.data
 
 /** Broad groups used to sort installed apps into LCARS sections. */
-enum class AppGroup(val label: String) {
-    VIDEO("VIDEO"),
-    MUSIC("AUDIO"),
-    COMMUNICATION("COMMS"),
-    GAMES("GAMES"),
-    SYSTEM("SYSTEM"),
-    OTHER("OTHER"),
-}
+enum class AppGroup { VIDEO, MUSIC, COMMUNICATION, GAMES, SYSTEM, OTHER }
 
 /**
  * Classifies an installed app from the metadata the app itself declares
